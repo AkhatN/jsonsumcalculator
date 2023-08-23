@@ -16,23 +16,30 @@ type Object struct {
 
 func main() {
 
-	// Флаги для получения пути к json файлу и количество горутин из аргументов командной строки
+	// Флаги для получения пути к json файлу, количество горутин и количество блоков из аргументов командной строки
 	jsonFilePath := flag.String("file", "", "Путь к файлу")
 	numOfGoroutines := flag.Int("numgo", 1, "Количество горутин")
+	numOfBlocks := flag.Int("numblocks", 1, "Количество блоков")
+
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: go run main.go -file <путь к файлу> -numgo <Количество горутин>\n")
+		fmt.Fprintf(os.Stderr, "Usage: go run main.go -file <путь к файлу> -numgo <Количество горутин> -numblocks <Количество блоков>\n")
 		flag.PrintDefaults()
 	}
 
 	flag.Parse()
 
 	if *jsonFilePath == "" {
-		log.Println("Нужно название файла\nUsage: go run main.go -file <Путь к файлу> -numgo <Количество горутин>")
+		log.Println("Нужно название файла\nUsage: go run main.go -file <Путь к файлу> -numgo <Количество горутин> -numblocks <Количество блоков>")
 		return
 	}
 
 	if *numOfGoroutines < 1 {
-		log.Println("Количество горутин не должно быть меньше 1\nUsage: go run main.go -file <Путь к файлу> -numgo <Количество горутин>")
+		log.Println("Количество горутин не должно быть меньше 1\nUsage: go run main.go -file <Путь к файлу> -numgo <Количество горутин> -numblocks <Количество блоков>")
+		return
+	}
+
+	if *numOfBlocks < 1 {
+		log.Println("Количество горутин не должно быть меньше 1\nUsage: go run main.go -file <Путь к файлу> -numgo <Количество горутин> -numblocks <Количество блоков>")
 		return
 	}
 
@@ -49,9 +56,19 @@ func main() {
 		return
 	}
 
+	jobs := make(chan []Object, *numOfBlocks)
+	results := make(chan int, *numOfBlocks)
+
+	var wg sync.WaitGroup
+
+	for w := 0; w < *numOfGoroutines; w++ {
+		wg.Add(1)
+		go worker(&wg, jobs, results)
+	}
+
 	// Нахождение размера блоков
 	isBlockSizeFixed := false
-	blockSize := len(objs) / *numOfGoroutines
+	blockSize := len(objs) / *numOfBlocks
 
 	if blockSize == 0 {
 		blockSize = 1
@@ -61,7 +78,7 @@ func main() {
 	leftElements := 0
 	if !isBlockSizeFixed {
 
-		numOfElements := blockSize * *numOfGoroutines
+		numOfElements := blockSize * *numOfBlocks
 
 		if numOfElements == len(objs) {
 			isBlockSizeFixed = true
@@ -72,56 +89,62 @@ func main() {
 		}
 	}
 
-	wg := &sync.WaitGroup{}
-	result := make(chan int)
+	count := 0
+	go func() {
+		// Распределение данных по блокам в горутины
+		for start := 0; start < len(objs); start += blockSize {
 
-	// Распределение данных по блокам в горутины
-	for start := 0; start < len(objs); start += blockSize {
+			end := start + blockSize
 
-		end := start + blockSize
+			if leftElements > 0 {
+				end++
+			}
 
-		if leftElements > 0 {
-			end++
+			if end > len(objs) {
+				end = len(objs)
+			}
+
+			jobs <- objs[start:end]
+
+			count++
+			if leftElements > 0 {
+				start++
+				leftElements--
+			}
 		}
 
-		if end > len(objs) {
-			end = len(objs)
-		}
+		close(jobs)
+	}()
 
-		wg.Add(1)
-
-		go calculateBlockSum(objs[start:end], result, wg)
-
-		if leftElements > 0 {
-			start++
-			leftElements--
-		}
-	}
-
-	// Ждет завершения всех горутин и закрытие канала
 	go func() {
 		wg.Wait()
-		close(result)
+		close(results)
 	}()
 
 	// Суммирование общего результата
 	totalResult := 0
-	for r := range result {
+	for r := range results {
 		totalResult += r
 	}
 
 	fmt.Println("Обший результат:", totalResult)
 }
 
-// calculateBlockSum находит сумму каждого отдельного блока
-func calculateBlockSum(block []Object, result chan int, wg *sync.WaitGroup) {
-
+func worker(wg *sync.WaitGroup, jobs <-chan []Object, result chan<- int) {
 	defer wg.Done()
 
-	sum := 0
-	for _, obj := range block {
-		sum += obj.A + obj.B
-	}
+	for {
 
-	result <- sum
+		job, ok := <-jobs
+		if !ok {
+			return
+		}
+
+		sum := 0
+		for _, obj := range job {
+			sum += obj.A + obj.B
+		}
+
+		result <- sum
+	}
 }
