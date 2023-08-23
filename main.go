@@ -89,7 +89,6 @@ func main() {
 		}
 	}
 
-	count := 0
 	go func() {
 		// Распределение данных по блокам в горутины
 		for start := 0; start < len(objs); start += blockSize {
@@ -106,7 +105,6 @@ func main() {
 
 			jobs <- objs[start:end]
 
-			count++
 			if leftElements > 0 {
 				start++
 				leftElements--
