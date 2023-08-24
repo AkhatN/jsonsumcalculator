@@ -32,19 +32,19 @@
 
 ## Как запустить
     # Usage: 
-    go run main.go -file <Путь к файлу> -numgo <Количество горутин>
+    go run main.go -file <путь к файлу> -numgo <Количество горутин> -numblocks <Количество блоков>
 
     # Пример: 
-    go run main.go -file numbers.json -numgo 2
+    go run main.go -file numbers.json -numgo 2 -numblocks 5
 
-    # Пример без указания количества горутин (количество горутин будет 1 по умолчанию): 
+    # Пример без указания количества горутин и блоков (количество горутин и блоков будет 1 по умолчанию): 
     go run main.go -file numbers.json 
 
     # Компиляция проекта: 
     go build *.go
 
     # Пример запуска скомплилированного проекта: 
-    ./main -file numbers.json -numgo 2
+    ./main -file numbers.json -numgo 2 -numblocks 5
 
     # help: 
     go run main.go --help
